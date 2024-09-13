@@ -3,6 +3,7 @@ import turfBearing from '@turf/bearing'
 import turfDistance from '@turf/distance'
 import turfDestination from '@turf/destination'
 import { coordAll as turfCoordAll } from '@turf/meta'
+import 'leaflet.path.drag'
 
 let id = 0
 
@@ -29,10 +30,7 @@ L.TrueSize = L.Layer.extend({
     fillColor: '#FF0000',
     fillOpacity: 0.3,
     fillRule: 'evenodd',
-    className: null,
-    markerDiv: null,
-    markerClass: null,
-    iconAnchor: []
+    className: null
   },
 
   initialize (geoJSON = this.geoJSON, options = {}) {
@@ -72,92 +70,36 @@ L.TrueSize = L.Layer.extend({
     // our currentlayer is always the first layer of geoJson layersgroup
     // but has a dynamic key
     this._currentLayer = this._geoJSONLayer.getLayers()[0]
-    const centerCoords = this._currentLayer.getCenter()
-    this._origCenter = [centerCoords.lng, centerCoords.lat]
 
-    // wrap currentlayer into draggable layer
-    this._createDraggable(this._currentLayer)
+    this._draggable = this._createDraggable(this._currentLayer.getBounds())
+    this._draggable.addTo(this._map)
+
+    const centerCoords = this._draggable.getCenter()
+    this._origCenter = [centerCoords.lng, centerCoords.lat]
 
     this._initialBearingDistance = this._getBearingDistance([
       centerCoords.lng,
       centerCoords.lat
     ])
-
-    if (this._options.markerDiv && this._options.markerDiv.length) {
-      this._dragMarker = this._createMarker(centerCoords, this._options)
-      this._dragMarker.addTo(this._map)
-    }
   },
 
-  _createMarker (center, options) {
-    const { markerClass, markerDiv, iconAnchor } = options
-    const dragIcon = L.divIcon({
-      className: markerClass,
-      html: markerDiv,
-      iconAnchor
+  _createDraggable (bounds) {
+    return L.rectangle(bounds, {
+      stroke: false,
+      fillOpacity: 0.3,
+      draggable: true
     })
-
-    return L.marker(center, { icon: dragIcon, draggable: true })
-      .on('dragstart', this._onMarkerDragStart, this)
-      .on('drag', this._onMarkerDrag, this)
-  },
-
-  _onMarkerDragStart (evt) {
-    const { lng, lat } = evt.target._latlng
-    const center = this._currentLayer.getCenter()
-
-    this._dragOffset = [lng - center.lng, lat - center.lat]
-  },
-
-  _onMarkerDrag (evt) {
-    this._redraw([evt.latlng.lng, evt.latlng.lat])
-  },
-
-  _createDraggable (layer) {
-    const boundingBox = L.rectangle(layer.getBounds())
-    const draggablePath = new L.Draggable(boundingBox)
-    draggablePath.enable()
-    draggablePath
-      .on('dragstart', this._onDragStart, this)
       .on('drag', this._onDrag, this)
-  },
-
-  _onDragStart (evt) {
-    const event = evt.touches ? evt.touches[0] : evt.target
-    const pos = this._getPositionFromEvent(event)
-    const coords = this._getLatLngFromPosition(pos)
-    const center = this._currentLayer.getCenter()
-
-    this._dragOffset = [coords[0] - center.lng, coords[1] - center.lat]
-    console.log('evt ', evt, 'pos ', pos, 'coords ', coords, 'center ', center, 'drag offset ', this._dragOffset)
+      .on('dragend', this._onDragEnd, this)
   },
 
   _onDrag (evt) {
-    const event = evt.touches ? evt.touches[0] : evt.originalEvent
-    const pos = this._getPositionFromEvent(event)
-    const coords = this._getLatLngFromPosition(pos)
-
-    this._redraw([
-      coords[0] - this._dragOffset[0],
-      coords[1] - this._dragOffset[1]
-    ])
+    const center = this._draggable.getCenter()
+    this._redraw([center.lng, center.lat])
   },
 
-  _getPositionFromEvent (evt) {
-    if (typeof evt._startPoint !== 'undefined') {
-      return evt._startPoint
-    }
-
-    return { x: evt.clientX, y: evt.clientY }
-  },
-
-  _getLatLngFromPosition (pos) {
-    const { left, top } = this._map._container.getClientRects()[0]
-    const { x, y } = pos
-
-    const posWithOffset = L.point(x - left, y - top)
-    const { lng, lat } = this._map.containerPointToLatLng(posWithOffset)
-    return [lng, lat]
+  _onDragEnd (evt) {
+    this._draggable.setBounds(this._currentLayer.getBounds())
   },
 
   _getBearingDistance (center) {
@@ -170,19 +112,20 @@ L.TrueSize = L.Layer.extend({
         this._getBearingAndDistance(center, point))
       )
     } else {
-      return turfCoordAll(this._currentLayer.feature).map(coord =>
-        this._getBearingAndDistance(center, coord)
+      return turfCoordAll(this._currentLayer.feature).map(point =>
+        this._getBearingAndDistance(center, point)
       )
     }
   },
 
-  _getBearingAndDistance (center, coord) {
-    const bearing = turfBearing(center, coord)
-    const distance = turfDistance(center, coord, { units: 'kilometers' })
+  _getBearingAndDistance (center, point) {
+    const bearing = turfBearing(center, point)
+    const distance = turfDistance(center, point, { units: 'kilometers' })
     return { bearing, distance }
   },
 
   _redraw (newPos) {
+    // draw the figure relative to newPos as the center of its bounding rectangle
     let newPoints
 
     if (this._isMultiPolygon) {
@@ -223,19 +166,12 @@ L.TrueSize = L.Layer.extend({
     // our currentlayer is always the first layer of geoJson layersgroup
     // but has a dynamic key
     this._currentLayer = this._geoJSONLayer.getLayers()[0]
-    // add draggable hook again, as we using internal a new layer
-    // center marker if existing
-    this._createDraggable(this._currentLayer)
-    this._dragMarker &&
-      this._dragMarker.setLatLng(this._currentLayer.getCenter())
   },
 
   onRemove (map) {
     this._map = map
     this._map.removeLayer(this._geoJSONLayer)
-    if (this._dragMarker) {
-      this._map.removeLayer(this._dragMarker)
-    }
+    this._map.removeLayer(this._draggable)
 
     return this
   },

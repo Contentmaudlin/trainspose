@@ -2,6 +2,7 @@ import L from 'leaflet'
 import turfBearing from '@turf/bearing'
 import turfDistance from '@turf/distance'
 import turfDestination from '@turf/destination'
+import transformRotate from '@turf/transform-rotate'
 import { coordAll as turfCoordAll } from '@turf/meta'
 import 'leaflet.path.drag'
 
@@ -30,7 +31,8 @@ L.TrueSize = L.Layer.extend({
     fillColor: '#FF0000',
     fillOpacity: 0.3,
     fillRule: 'evenodd',
-    className: null
+    className: null,
+    clickable: false
   },
 
   initialize (geoJSON = this.geoJSON, options = {}) {
@@ -39,6 +41,7 @@ L.TrueSize = L.Layer.extend({
     this._geometryType = geoJSON.geometry.type
     this._isMultiPolygon = this._geometryType === 'MultiPolygon'
     this._isMultiLineString = this._geometryType === 'MultiLineString'
+    this._rotation = 0
 
     L.Util.setOptions(this, this._options)
     this._initGeoJson(geoJSON, this._options)
@@ -52,7 +55,16 @@ L.TrueSize = L.Layer.extend({
   },
 
   setCenter (center) {
-    this._redraw(center.slice(0).reverse())
+    this._center = center.slice(0).reverse()
+    this._redraw()
+    this._refreshDraggable()
+  },
+
+  setRotation (degrees) {
+    console.log('setting rotation: ', degrees)
+    this._rotation = degrees
+    this._redraw()
+    this._refreshDraggable()
   },
 
   reset () {
@@ -60,7 +72,9 @@ L.TrueSize = L.Layer.extend({
       return false
     }
 
-    this._redraw(this._origCenter)
+    this._center = this._origCenter
+    this._redraw()
+    this._refreshDraggable()
   },
 
   onAdd (map) {
@@ -76,62 +90,68 @@ L.TrueSize = L.Layer.extend({
 
     const centerCoords = this._draggable.getCenter()
     this._origCenter = [centerCoords.lng, centerCoords.lat]
+    this._center = [...this._origCenter]
 
-    this._initialBearingDistance = this._getBearingDistance([
-      centerCoords.lng,
-      centerCoords.lat
-    ])
+    this._initialBearingDistance = this._getBearingDistance(this._origCenter)
   },
 
   _createDraggable (bounds) {
     return L.rectangle(bounds, {
       stroke: false,
-      fillOpacity: 0.3,
-      draggable: true
+      fillOpacity: 0.0,
+      draggable: true,
+      className: 'draggable'
     })
       .on('drag', this._onDrag, this)
       .on('dragend', this._onDragEnd, this)
   },
 
-  _onDrag (evt) {
-    const center = this._draggable.getCenter()
-    this._redraw([center.lng, center.lat])
-  },
-
-  _onDragEnd (evt) {
+  _refreshDraggable () {
     this._draggable.setBounds(this._currentLayer.getBounds())
+    this._draggable.bringToFront()
   },
 
-  _getBearingDistance (center) {
+  _onDrag () {
+    console.log('onDrag')
+    const centerCoords = this._draggable.getCenter()
+    this._center = [centerCoords.lng, centerCoords.lat]
+    this._redraw()
+  },
+
+  _onDragEnd () {
+    this._refreshDraggable()
+  },
+
+  _getBearingDistance (origin) {
     if (this._isMultiPolygon) {
       return this._currentLayer.feature.geometry.coordinates.map(polygon => polygon.map(linestring =>
-        linestring.map(point => this._getBearingAndDistance(center, point)))
+        linestring.map(point => this._getBearingAndDistance(origin, point)))
       )
     } else if (this._isMultiLineString) {
       return this._currentLayer.feature.geometry.coordinates.map(linestring => linestring.map(point =>
-        this._getBearingAndDistance(center, point))
+        this._getBearingAndDistance(origin, point))
       )
     } else {
       return turfCoordAll(this._currentLayer.feature).map(point =>
-        this._getBearingAndDistance(center, point)
+        this._getBearingAndDistance(origin, point)
       )
     }
   },
 
-  _getBearingAndDistance (center, point) {
-    const bearing = turfBearing(center, point)
-    const distance = turfDistance(center, point, { units: 'kilometers' })
+  _getBearingAndDistance (origin, point) {
+    const bearing = turfBearing(origin, point)
+    const distance = turfDistance(origin, point, { units: 'kilometers' })
     return { bearing, distance }
   },
 
-  _redraw (newPos) {
+  _redraw () {
     // draw the figure relative to newPos as the center of its bounding rectangle
     let newPoints
 
     if (this._isMultiPolygon) {
       newPoints = this._initialBearingDistance.map(polygon => polygon.map(linestring =>
         linestring.map(params => {
-          return turfDestination(newPos, params.distance, params.bearing, {
+          return turfDestination(this._center, params.distance, params.bearing, {
             units: 'kilometers'
           }).geometry.coordinates
         }))
@@ -139,14 +159,14 @@ L.TrueSize = L.Layer.extend({
     } else if (this._isMultiLineString) {
       newPoints = this._initialBearingDistance.map(linestring =>
         linestring.map(params => {
-          return turfDestination(newPos, params.distance, params.bearing, {
+          return turfDestination(this._center, params.distance, params.bearing, {
             units: 'kilometers'
           }).geometry.coordinates
         })
       )
     } else {
       newPoints = this._initialBearingDistance.map(params => {
-        return turfDestination(newPos, params.distance, params.bearing, {
+        return turfDestination(this._center, params.distance, params.bearing, {
           units: 'kilometers'
         }).geometry.coordinates
       })
@@ -161,8 +181,10 @@ L.TrueSize = L.Layer.extend({
       }
     }
 
+    const rotatedFeature = transformRotate(newFeature, this._rotation, { pivot: this._center })
+
     this._geoJSONLayer.clearLayers()
-    this._geoJSONLayer.addData(newFeature)
+    this._geoJSONLayer.addData(rotatedFeature)
     // our currentlayer is always the first layer of geoJson layersgroup
     // but has a dynamic key
     this._currentLayer = this._geoJSONLayer.getLayers()[0]

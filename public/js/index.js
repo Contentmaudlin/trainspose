@@ -1,9 +1,15 @@
 import L from 'leaflet'
 import './leaflet-truesize.js'
+import MicroModal from 'micromodal'
+import List from 'list.js'
 
-const map = L.map('map').setView([47.61210445724804, -122.32326593401075], 5)
+MicroModal.init({
+  disableScroll: true
+})
 
-L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_nolabels/{z}/{x}/{y}.png', {
+const map = L.map('map').setView([2.0, 102.0], 5)
+
+L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 }).addTo(map)
@@ -43,8 +49,31 @@ const geojsonFeature = {
   }
 }
 
-L.trueSize(geojsonFeature, {
+const trueSize = L.trueSize(geojsonFeature, {
   color: '#FF0000',
   weight: 1,
   opacity: 1
-}).addTo(map)
+})
+
+trueSize.addTo(map)
+
+const handleRotation = (event) => {
+  trueSize.setRotation(parseInt(event.target.value))
+  console.log(event.target.value)
+}
+
+document.getElementById('rotation-slider').addEventListener('input', handleRotation)
+
+const options = {
+  valueNames: ['name', 'location'],
+  item: '<li><h3 class="name"></h3><p class="location"></p></li>'
+}
+
+const values = [
+  {
+    name: 'Test Name',
+    location: 'Test Location'
+  }
+]
+
+List('system-list', options, values)t

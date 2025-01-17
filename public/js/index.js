@@ -76,4 +76,4 @@ const values = [
   }
 ]
 
-List('system-list', options, values)t
+List('system-list', options, values)

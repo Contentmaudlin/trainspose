@@ -55,13 +55,20 @@ L.TrueSize = L.Layer.extend({
   },
 
   setCenter (center) {
-    this._center = center.slice(0).reverse()
+    this._center = center
     this._redraw()
     this._refreshDraggable()
   },
 
+  getCenter () {
+    return this._center
+  },
+
+  getBounds () {
+    return this._currentLayer.getBounds()
+  },
+
   setRotation (degrees) {
-    console.log('setting rotation: ', degrees)
     this._rotation = degrees
     this._redraw()
     this._refreshDraggable()
@@ -99,6 +106,7 @@ L.TrueSize = L.Layer.extend({
     return L.rectangle(bounds, {
       stroke: false,
       fillOpacity: 0.0,
+      fillColor: 'gray',
       draggable: true,
       className: 'draggable'
     })
@@ -112,14 +120,15 @@ L.TrueSize = L.Layer.extend({
   },
 
   _onDrag () {
-    console.log('onDrag')
     const centerCoords = this._draggable.getCenter()
     this._center = [centerCoords.lng, centerCoords.lat]
+    this._draggable.setStyle({ fillOpacity: 0.5 })
     this._redraw()
   },
 
   _onDragEnd () {
     this._refreshDraggable()
+    this._draggable.setStyle({ fillOpacity: 0.0 })
   },
 
   _getBearingDistance (origin) {

@@ -19,7 +19,7 @@ L.TrueSize = L.Layer.extend({
   },
 
   options: {
-    color: '#FF0000',
+    color: '#3DAE2B',
     stroke: true,
     weight: 1,
     opacity: 1,
@@ -28,7 +28,7 @@ L.TrueSize = L.Layer.extend({
     dashArray: null,
     dashOffset: null,
     fill: true,
-    fillColor: '#FF0000',
+    fillColor: '#3DAE2B',
     fillOpacity: 0.3,
     fillRule: 'evenodd',
     className: null,
@@ -110,6 +110,7 @@ L.TrueSize = L.Layer.extend({
       draggable: true,
       className: 'draggable'
     })
+      .on('dragstart', this._onDragStart, this)
       .on('drag', this._onDrag, this)
       .on('dragend', this._onDragEnd, this)
   },
@@ -119,9 +120,22 @@ L.TrueSize = L.Layer.extend({
     this._draggable.bringToFront()
   },
 
+  _onDragStart () {
+    const draggableCenter = this._draggable.getCenter()
+    const dragCenterCoords = [draggableCenter.lng, draggableCenter.lat]
+    if (this._rotation) {
+      this._offset = this._getBearingAndDistance(dragCenterCoords, this._center)
+    }
+  },
+
   _onDrag () {
-    const centerCoords = this._draggable.getCenter()
-    this._center = [centerCoords.lng, centerCoords.lat]
+    const draggableCenter = this._draggable.getCenter()
+    const dragCenterCoords = [draggableCenter.lng, draggableCenter.lat]
+    if (this._rotation) {
+      this._center = turfDestination(dragCenterCoords, this._offset.distance, this._offset.bearing).geometry.coordinates
+    } else {
+      this._center = dragCenterCoords
+    }
     this._draggable.setStyle({ fillOpacity: 0.5 })
     this._redraw()
   },
@@ -154,7 +168,6 @@ L.TrueSize = L.Layer.extend({
   },
 
   _redraw () {
-    // draw the figure relative to newPos as the center of its bounding rectangle
     let newPoints
 
     if (this._isMultiPolygon) {

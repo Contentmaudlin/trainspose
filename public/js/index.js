@@ -3,6 +3,8 @@ import './leaflet-truesize.js'
 import MicroModal from 'micromodal'
 import List from 'list.js'
 
+const MAP_COLOR = '#FE11A5'
+
 MicroModal.init({
   disableScroll: true
 })
@@ -17,7 +19,7 @@ L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x
 const geojsonFeature = await fetch('/geometry/test.json').then(response => response.json())
 
 let systemMap = L.trueSize(geojsonFeature, {
-  color: '#FF0000',
+  color: MAP_COLOR,
   weight: 1,
   opacity: 1
 })
@@ -37,6 +39,7 @@ const options = {
     <button
       class="system-btn"
       id="${values.systemId}"
+      data-micromodal-close
     >
       <span class="name">${values.name}</span>
       <span class="location">${values.location}</span>
@@ -47,14 +50,34 @@ const options = {
 
 const values = [
   {
-    name: 'Test Name',
-    location: 'Test Location',
-    systemId: 'test'
-  },
-  {
     name: 'Link Light Rail',
     location: 'Seattle, WA, USA',
     systemId: 'link'
+  },
+  {
+    name: 'Paris Metro',
+    location: 'Paris, France',
+    systemId: 'ratp'
+  },
+  {
+    name: 'The T',
+    location: 'Boston, MA, USA',
+    systemId: 'mbta'
+  },
+  {
+    name: 'Amtrak',
+    location: 'USA',
+    systemId: 'amtrak'
+  },
+  {
+    name: 'The \'L\'',
+    location: 'Chicago, IL, USA',
+    systemId: 'cta'
+  },
+  {
+    name: 'The NYC Subway',
+    location: 'New York, NY, USA',
+    systemId: 'mta'
   }
 ]
 
@@ -65,7 +88,7 @@ const selectSystem = async (systemId) => {
   map.removeLayer(systemMap)
   const geojsonFeature = await fetch(`/geometry/${encodeURIComponent(systemId)}.json`).then(response => response.json())
   systemMap = L.trueSize(geojsonFeature, {
-    color: '#FF0000',
+    color: MAP_COLOR,
     weight: 1,
     opacity: 1
   })
@@ -81,15 +104,14 @@ for (const button of document.getElementsByClassName('system-btn')) {
   button.addEventListener('click', () => selectSystem(button.id))
 }
 
-const selectLocation = async () => {
-  const locationText = document.getElementById('location-input').value
+const selectLocation = async (locationText) => {
   if (!locationText) return
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationText)}&format=json&limit=1`
   const queryResult = await fetch(url).then(response => response.json())
   const foundLocation = queryResult[0]
   if (!foundLocation) return // todo error handling
   document.getElementById('location-select').textContent = foundLocation.name
-  MicroModal.close('location-modal')
+  MicroModal.close()
   document.getElementById('location-input').value = ''
   systemMap.setCenter([Number(foundLocation.lon), Number(foundLocation.lat)])
   map.fitBounds(systemMap.getBounds())
@@ -97,5 +119,8 @@ const selectLocation = async () => {
 
 document.getElementById('location-search').addEventListener('submit', (event) => {
   event.preventDefault()
-  selectLocation()
+  selectLocation(document.getElementById('location-input').value)
 })
+
+selectSystem('ratp')
+selectLocation('seattle')

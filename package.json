@@ -33,7 +33,7 @@
 "scripts": {
   "build": "./build.sh",
   "predeploy": "npm run build",
-  "deploy": "gh-pages -d build"
+  "deploy": "gh-pages -d ."
 },
   "author": "",
   "license": "ISC"

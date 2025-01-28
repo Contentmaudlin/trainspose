@@ -30,11 +30,11 @@
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^5.1.0"
   },
-"scripts": {
-  "build": "./build.sh",
-  "predeploy": "npm run build",
-  "deploy": "gh-pages -d ."
-},
+  "scripts": {
+    "build": "./build.sh",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d public"
+  },
   "author": "",
   "license": "ISC"
 }
